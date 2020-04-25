@@ -1,0 +1,77 @@
+#include <TN901.h> //TN901 library
+TN901 tn;                 //Create TN901 object
+
+#include <Arduino.h> 
+#include <Wire.h>
+#include <MicroLCD.h> //OLED Library
+LCD_SSD1306 lcd; /* for SSD1306 OLED module */
+static const PROGMEM uint8_t tick[16 * 16 / 8] =
+{0x00,0x80,0xC0,0xE0,0xC0,0x80,0x00,0x80,0xC0,0xE0,0xF0,0xF8,0xFC,0x78,0x30,0x00,0x00,0x01,0x03,0x07,0x0F,0x1F,0x1F,0x1F,0x0F,0x07,0x03,0x01,0x00,0x00,0x00,0x00}; //Show tick
+static const PROGMEM uint8_t cross[16 * 16 / 8] =
+{0x00,0x0C,0x1C,0x3C,0x78,0xF0,0xE0,0xC0,0xE0,0xF0,0x78,0x3C,0x1C,0x0C,0x00,0x00,0x00,0x30,0x38,0x3C,0x1E,0x0F,0x07,0x03,0x07,0x0F,0x1E,0x3C,0x38,0x30,0x00,0x00}; //show cross
+
+#include "LedControl.h" //8 * 8 Dot Matrix Library
+LedControl lc=LedControl(12,11,13,1);
+
+#include <MsTimer2.h> //Timer library
+
+void setup()
+{
+    pinMode(A0,INPUT); //Set the port of the distance sensor
+    tn.Init(8,2,7);  //tn901 initialization
+    lcd.begin(); //oled start up
+    lcd.setFont(FONT_SIZE_LARGE); //Set font size
+    lcd.setCursor(0, 3); 
+    lc.shutdown(0,false); //8 * 8 dot matrix start
+    lc.setIntensity(0,8); 
+    lc.clearDisplay(0);
+    MsTimer2::set(100, flash); // 500ms period //Timer setting, mainly let 8 * 8 dot matrix produce breathing light effect
+    MsTimer2::start();
+    ShowHeart();//8 * 8 dots display a heart shape
+}
+void loop()
+{
+  static int temp;  
+  int t;
+  boolean mode=false; //true - BODY; false - ROOM
+  tn.Read(); //Read the temperature of TN901
+  mode=!digitalRead(A0);  //Detect whether the distance sensor is close to the human body
+  if(mode)  //If close to the human body
+  {
+       t=tn.OT+180; //tn.OT Read body temperature
+       if(temp<t)temp=t;
+  }
+  else temp=tn.ET-400; //tn.ET,Read ambient temperature
+   LCD_Value(temp,mode); //oled shows body temperature or ambient temperature
+   delay(200); //Delayed for TN901 to refresh
+}
+
+void LCD_Value(int temp,boolean mode)
+{
+  lcd.setCursor(30, 3); 
+  lcd.print((float)temp/100);
+  lcd.print(" C");
+  if(mode) lcd.draw( tick, 54, 48, 16, 16);
+  else     lcd.draw(cross, 54, 48, 16, 16);
+}
+
+void flash()
+{
+  static int i=0;
+  static boolean d=true;
+  if(d)i++;
+  else i--;
+  if(i==15 || i==0) d=!d;
+  lc.setIntensity(0,i);
+}
+void ShowHeart()
+{
+  lc.setRow(0,0,B00110000);
+  lc.setRow(0,1,B01111000);
+  lc.setRow(0,2,B01111100);
+  lc.setRow(0,3,B00111110);
+  lc.setRow(0,4,B00111110);
+  lc.setRow(0,5,B01111100);
+  lc.setRow(0,6,B01111000);
+  lc.setRow(0,7,B00110000);
+}
